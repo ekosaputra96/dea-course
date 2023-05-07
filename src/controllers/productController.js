@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const util = require('util');
 const query = util.promisify(db.query).bind(db);
+const {success, ValidateError} = require("../helpers/response")
 
 /*
     @desc   create new product
@@ -8,34 +9,21 @@ const query = util.promisify(db.query).bind(db);
     @access Public
 */
 
-async function create(req, res) {
+async function create(req, res, next) {
     const { name, price, stock } = req.body;
-
-    if (!name || !price || !stock) {
-        res.json({
-            success: false,
-            error: "All fields are required",
-        });
-    }
-
+    
     try {
-        await query("INSERT INTO products(name, price, stock) VALUES(?, ?, ?)", [name, price, stock]);
-        const [rows] = await query("SELECT LAST_INSERT_ID() as id");
-        res.status(201).json({
-            success: true,
-            data: {
-                id: rows.id,
-                name,
-                price,
-                stock,
-            },
-            message: "Product created successfully",
-        });
+        // validating
+        if (!name || !price || !stock) {
+            throw new ValidateError("All fields are required", 400);
+        }
+
+        // inserting new product
+        const product = await query("INSERT INTO products(name, price, stock) VALUES(?, ?, ?)", [name, price, stock]);
+        const [data] = await query("SELECT * FROM products WHERE id = ?", [product.insertId]);
+        return success(res, data, "Product created successfully", 201)
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+        next(error);
     }
 }
 
@@ -44,19 +32,12 @@ async function create(req, res) {
     @route  GET /api/v1/products
     @access Public
 */
-async function getAll(req, res) {
+async function getAll(req, res, next) {
     try {
         const data = await query("SELECT * FROM products");
-        res.status(200).json({
-            success: true,
-            data,
-            message: "Products fetched successfully",
-        });
+        return success(res, data, "Products fetched successfully")
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message,
-        });
+        next(error)
     }
 }
 
